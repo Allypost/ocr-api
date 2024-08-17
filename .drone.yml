@@ -19,6 +19,7 @@ steps:
       # Use plain logs for docker build instead of fancy buildkit logs
       BUILDKIT_PROGRESS: "plain"
     commands:
+      - cd ./ocr-api-rs
       - echo "Building '$_DOCKER_BUILD_IMAGE:${DRONE_COMMIT_SHA}' on '${DRONE_STAGE_MACHINE}'"
       - docker build --pull --compress --label "net.allypost.ocr-api-rs=true" --tag "$_DOCKER_BUILD_IMAGE":latest --tag "$_DOCKER_BUILD_IMAGE":"${DRONE_COMMIT_SHA}" --file ./Dockerfile .
       - docker login -u "$_DOCKER_USERNAME" -p "$_DOCKER_PASSWORD"
@@ -65,6 +66,7 @@ steps:
       # Use plain logs for docker build instead of fancy buildkit logs
       BUILDKIT_PROGRESS: "plain"
     commands:
+      - cd ./ocr-api-py
       - echo "Building '$_DOCKER_BUILD_IMAGE:${DRONE_COMMIT_SHA}' on '${DRONE_STAGE_MACHINE}'"
       - docker build --pull --compress --label "net.allypost.ocr-api-py=true" --tag "$_DOCKER_BUILD_IMAGE":latest --tag "$_DOCKER_BUILD_IMAGE":"${DRONE_COMMIT_SHA}" --file ./Dockerfile .
       - docker login -u "$_DOCKER_USERNAME" -p "$_DOCKER_PASSWORD"
