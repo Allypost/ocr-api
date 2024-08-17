@@ -1,0 +1,51 @@
+set dotenv-load := true
+set positional-arguments := true
+
+rustflags := ""
+rust_target := "x86_64-unknown-linux-gnu"
+
+default:
+    @just --list
+
+_base package *args:
+    RUSTFLAGS='{{rustflags}}' \
+    cargo \
+        --target '{{rust_target}}' \
+        --package '{{package}}' \
+        {{args}} \
+
+build package *args:
+    just _base build \
+        --release \
+        -- {{args}} \
+
+build-service *args: (build 'ocr-api' args)
+
+dev-watch package *args:
+    cargo watch \
+        --clear \
+        --quiet \
+        --exec 'run --target "{{rust_target}}" --package "{{package}}" -- {{args}}' \
+
+dev-watch-service *args: (dev-watch 'ocr-api' args)
+
+dev-run package *args:
+    RUSTFLAGS='{{rustflags}}' \
+    cargo run \
+        --target "{{rust_target}}" \
+        --package '{{package}}' \
+        -- {{args}} \
+
+dev-run-service *args: (dev-run 'ocr-api' args)
+
+fmt: lint-fix
+    cargo fmt --all \
+
+lint:
+    cargo clippy --workspace --all-features -- \
+
+lint-fix:
+    cargo clippy --fix --allow-dirty --allow-staged --workspace --all-features -- \
+
+fmt-dev: && fmt
+    rustup run nightly cargo fmt --all \

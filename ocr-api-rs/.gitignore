@@ -1,0 +1,12 @@
+/target
+/devtest/
+
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+compose.override.yaml
+compose.*.override.yaml
+docker-compose.override.yml
+docker-compose.*.override.yml
