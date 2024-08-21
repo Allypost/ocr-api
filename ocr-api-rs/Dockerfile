@@ -103,7 +103,7 @@ RUN upx --best --lzma "/app/target/${RUST_TARGET}/release/${BINARY_NAME}"
 ##
 ## Run the app in a configured environment
 ##
-FROM scratch
+FROM alpine:latest AS runtime
 ENV PORT=8000
 ENV HOST=0.0.0.0
 LABEL maintainer="Josip Igrec <me@allypost.net>"
@@ -115,5 +115,8 @@ LABEL org.opencontainers.image.authors="Josip Igrec <me@allypost.net>"
 ARG RUST_TARGET
 ARG BINARY_NAME
 COPY --from=builder "/app/target/${RUST_TARGET}/release/${BINARY_NAME}" /exe
+RUN apk add --no-cache \
+    tesseract-ocr \
+    tesseract-ocr-data-eng
 EXPOSE 8000
 ENTRYPOINT [ "/exe" ]

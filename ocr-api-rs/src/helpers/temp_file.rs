@@ -13,6 +13,7 @@ pub struct TempFile {
     file: File,
     delete_on_drop: bool,
 }
+#[allow(dead_code)]
 impl TempFile {
     pub async fn absolute<T>(file_name: T) -> Result<Self, std::io::Error>
     where
@@ -39,6 +40,22 @@ impl TempFile {
     {
         let mut f: OsString = file_name_prefix.into();
         f.push(time_thread_id());
+        Self::absolute(f).await
+    }
+
+    pub async fn with_prefix_and_extension<T, U>(
+        file_name_prefix: T,
+        extension: U,
+    ) -> Result<Self, std::io::Error>
+    where
+        T: Into<OsString> + std::marker::Send,
+        U: Into<OsString> + std::marker::Send,
+    {
+        let mut f: OsString = file_name_prefix.into();
+        f.push(time_thread_id());
+        f.push(".");
+        f.push(extension.into());
+
         Self::absolute(f).await
     }
 

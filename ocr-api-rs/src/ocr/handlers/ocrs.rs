@@ -108,10 +108,7 @@ pub fn ocr_image(path: &Path, mime_type: Option<&str>) -> anyhow::Result<OcrResu
     let line_items = line_texts
         .iter()
         .filter_map(|line| line.as_ref())
-        .map(|line| OcrTextItem {
-            text: line.to_string(),
-            text_box: Some(CoordBox::from(&line.rotated_rect())),
-        })
+        .map(|line| OcrTextItem::from(line).with_text_box(Some(&line.rotated_rect())))
         .collect::<Vec<_>>();
 
     Ok(line_items.into())

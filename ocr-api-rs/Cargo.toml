@@ -8,12 +8,14 @@ anyhow = "1.0.86"
 axum = { version = "0.7.5", features = ["http2", "macros", "multipart"] }
 convert_case = "0.6.0"
 image = { version = "0.25.2", features = ["png", "jpeg", "webp"] }
+mime2ext = "0.1.53"
 ocrs = "0.8.0"
 once_cell = { version = "1.19.0", features = ["parking_lot"] }
 parking_lot = { version = "0.12.3", features = ["deadlock_detection"] }
 rten = { version = "0.10.0" }
 rten-imageproc = { version = "0.10.0" }
 rten-tensor = { version = "0.10.0" }
+rusty-tesseract = "1.1.10"
 serde = { version = "1.0.208", features = ["derive"] }
 serde_json = { version = "1.0.125", features = ["alloc"] }
 tokio = { version = "1.39.2", features = ["fs", "parking_lot", "rt-multi-thread"] }

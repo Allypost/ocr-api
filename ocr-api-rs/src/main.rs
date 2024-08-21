@@ -163,7 +163,12 @@ async fn upload_temp_file(
         let content_type = field.content_type().map(ToString::to_string);
         trace!(?content_type, "Content type");
 
-        let mut temp_file = TempFile::with_prefix("ocr-").await?;
+        let ext = content_type
+            .as_ref()
+            .and_then(mime2ext::mime2ext)
+            .unwrap_or("bin");
+
+        let mut temp_file = TempFile::with_prefix_and_extension("ocr-", ext).await?;
 
         trace!(?temp_file, "Created temp file");
 
@@ -216,6 +221,8 @@ async fn handler_ocr_by_handler_name(
             return (StatusCode::NOT_FOUND, Json(resp.error(&err))).into_response();
         }
     };
+
+    trace!(?ocr_handler, "Found handler");
 
     let file = match upload_temp_file(&mut multipart, "file").await {
         Ok(file) => file,

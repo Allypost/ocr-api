@@ -5,6 +5,7 @@ use once_cell::sync::Lazy;
 use serde::Serialize;
 
 pub mod ocrs;
+pub mod tesseract;
 
 pub static HANDLERS: Lazy<Vec<Arc<dyn OcrHandler>>> = Lazy::new(handlers);
 
@@ -39,6 +40,23 @@ pub struct OcrTextItem {
     text: String,
     #[serde(rename = "box", skip_serializing_if = "Option::is_none")]
     text_box: Option<CoordBox>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    confidence: Option<f32>,
+}
+
+impl OcrTextItem {
+    pub fn with_text_box<T>(mut self, text_box: Option<T>) -> Self
+    where
+        T: Into<CoordBox>,
+    {
+        self.text_box = text_box.map(Into::into);
+        self
+    }
+
+    pub const fn with_confidence(mut self, confidence: Option<f32>) -> Self {
+        self.confidence = confidence;
+        self
+    }
 }
 
 impl<T> From<T> for OcrTextItem
@@ -49,6 +67,7 @@ where
         Self {
             text: text.to_string(),
             text_box: None,
+            confidence: None,
         }
     }
 }
@@ -76,5 +95,5 @@ pub struct Point {
 }
 
 fn handlers() -> Vec<Arc<dyn OcrHandler>> {
-    vec![Arc::new(ocrs::Ocrs)]
+    vec![Arc::new(ocrs::Ocrs), Arc::new(tesseract::Tesseract)]
 }
