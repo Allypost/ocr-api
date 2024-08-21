@@ -1,11 +1,11 @@
-use core::num::{NonZeroI128, NonZeroU128};
-use core::num::{NonZeroI16, NonZeroU16};
-use core::num::{NonZeroI32, NonZeroU32};
-use core::num::{NonZeroI64, NonZeroU64};
-use core::num::{NonZeroI8, NonZeroU8};
-use core::num::{NonZeroIsize, NonZeroUsize};
-use std::fmt::{Display, Formatter, Result};
-use std::iter::successors;
+use core::num::{
+    NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroIsize, NonZeroU128,
+    NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize,
+};
+use std::{
+    fmt::{Display, Formatter, Result},
+    iter::successors,
+};
 
 pub type Base = u8;
 
