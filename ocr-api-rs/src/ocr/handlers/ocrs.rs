@@ -6,12 +6,23 @@ use once_cell::sync::Lazy;
 use rten::Model;
 use rten_imageproc::RotatedRect;
 use rten_tensor::{prelude::*, NdTensor};
-use serde::Serialize;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, trace};
 
-static DETECTION_MODEL_DATA: &[u8] = include_bytes!("../models/text-detection.rten");
-static RECOGNITION_MODEL_DATA: &[u8] = include_bytes!("../models/text-recognition.rten");
+use super::{CoordBox, OcrHandler, OcrResult, OcrTextItem, Point};
+
+static DETECTION_MODEL_DATA: &[u8] = include_bytes!("../../../models/ocrs-text-detection.rten");
+static RECOGNITION_MODEL_DATA: &[u8] = include_bytes!("../../../models/ocrs-text-recognition.rten");
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Ocrs;
+
+#[typetag::serde]
+impl OcrHandler for Ocrs {
+    fn ocr(&self, path: &Path, mime_type: Option<&str>) -> anyhow::Result<OcrResult> {
+        ocr_image(path, mime_type)
+    }
+}
 
 pub static OCR_ENGINE: Lazy<OcrEngine> = Lazy::new(|| {
     debug!("Loading OCR models");
@@ -37,7 +48,7 @@ pub static OCR_ENGINE: Lazy<OcrEngine> = Lazy::new(|| {
 });
 
 #[tracing::instrument]
-pub fn ocr_image(path: &Path, mime_type: Option<&str>) -> anyhow::Result<Vec<serde_json::Value>> {
+pub fn ocr_image(path: &Path, mime_type: Option<&str>) -> anyhow::Result<OcrResult> {
     trace!("Reading image from path");
     let img = {
         let mut img = ImageReader::new(std::io::BufReader::new(std::fs::File::open(path)?));
@@ -97,24 +108,15 @@ pub fn ocr_image(path: &Path, mime_type: Option<&str>) -> anyhow::Result<Vec<ser
     let line_items = line_texts
         .iter()
         .filter_map(|line| line.as_ref())
-        .map(|line| {
-            json!({
-                "text": line.to_string(),
-                "box": CoordBox::from(&line.rotated_rect()),
-            })
+        .map(|line| OcrTextItem {
+            text: line.to_string(),
+            text_box: Some(CoordBox::from(&line.rotated_rect())),
         })
         .collect::<Vec<_>>();
 
-    Ok(line_items)
+    Ok(line_items.into())
 }
 
-#[derive(Debug, Serialize)]
-struct CoordBox {
-    tl: Point,
-    tr: Point,
-    br: Point,
-    bl: Point,
-}
 impl From<&RotatedRect> for CoordBox {
     fn from(rr: &RotatedRect) -> Self {
         let corners = rr.corners();
@@ -127,11 +129,6 @@ impl From<&RotatedRect> for CoordBox {
     }
 }
 
-#[derive(Debug, Serialize)]
-struct Point {
-    x: i32,
-    y: i32,
-}
 impl From<rten_imageproc::Point<f32>> for Point {
     fn from(point: rten_imageproc::Point<f32>) -> Self {
         #[allow(clippy::cast_possible_truncation)]

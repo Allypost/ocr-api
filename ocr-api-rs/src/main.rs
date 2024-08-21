@@ -12,8 +12,7 @@ use axum::{
     Json, Router,
 };
 use helpers::temp_file::TempFile;
-use ocr::ocr_image;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
 use tokio::{io::AsyncWriteExt, net::TcpListener};
 use tower::ServiceBuilder;
 use tower_http::{
@@ -182,16 +181,34 @@ async fn upload_temp_file(
 
 async fn ocr_handler(mut multipart: Multipart) -> impl IntoResponse {
     trace!("Handling OCR request");
+
+    let resp = OcrResponseBase::new(&handler_name);
+
+    let ocr_handler = ocr::HANDLERS
+        .iter()
+        .find(|h| h.name() == handler_name)
+        .cloned();
+
+    let ocr_handler = match ocr_handler {
+        Some(handler) => handler,
+        None => {
+            let err = format!(
+                "Unknown handler. Available handlers: {}",
+                ocr::HANDLERS
+                    .iter()
+                    .map(|h| h.name())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+
+            return (StatusCode::NOT_FOUND, Json(resp.error(&err))).into_response();
+        }
+    };
+
     let file = match upload_temp_file(&mut multipart, "file").await {
         Ok(file) => file,
         Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "error": e.to_string(),
-                })),
-            )
-                .into_response();
+            return resp.error(&e).into_response();
         }
     };
     trace!(?file, "Uploaded file");
@@ -205,7 +222,7 @@ async fn ocr_handler(mut multipart: Multipart) -> impl IntoResponse {
 
         tokio::task::spawn_blocking(move || {
             let _entered = cur_span.enter();
-            ocr_image(&img_path, img_mime_type.as_deref())
+            ocr_handler.ocr(&img_path, img_mime_type.as_deref())
         })
         .await
     };
@@ -214,31 +231,75 @@ async fn ocr_handler(mut multipart: Multipart) -> impl IntoResponse {
     let ocr_result = match ocr_task_result {
         Ok(ocr_result) => ocr_result,
         Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "error": format!("{:?}", e),
-                })),
-            )
-                .into_response();
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(resp.error(&e))).into_response();
         }
     };
 
     let ocr_result = match ocr_result {
         Ok(ocr_result) => ocr_result,
         Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "error": e.to_string(),
-                })),
-            )
-                .into_response();
+            return resp.error(&e).into_response();
         }
     };
 
-    Json(json!({
-        "data": ocr_result,
-    }))
-    .into_response()
+    resp.data(ocr_result.matches).into_response()
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum OcrResult {
+    Error(String),
+    Data(Vec<serde_json::Value>),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct OcrResponse {
+    pub engine: String,
+    #[serde(flatten)]
+    pub result: OcrResult,
+}
+impl IntoResponse for OcrResponse {
+    fn into_response(self) -> Response<axum::body::Body> {
+        match self.result {
+            OcrResult::Error(_) => (StatusCode::BAD_REQUEST, Json(self)).into_response(),
+            OcrResult::Data(_) => (StatusCode::OK, Json(self)).into_response(),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct OcrResponseBase {
+    engine: String,
+}
+impl OcrResponseBase {
+    fn new<T>(engine: T) -> Self
+    where
+        T: Into<String>,
+    {
+        Self {
+            engine: engine.into(),
+        }
+    }
+
+    fn error<E>(&self, error: &E) -> OcrResponse
+    where
+        E: ToString,
+    {
+        OcrResponse {
+            engine: self.engine.clone(),
+            result: OcrResult::Error(error.to_string()),
+        }
+    }
+
+    fn data<D, I>(&self, data: D) -> OcrResponse
+    where
+        D: IntoIterator<Item = I>,
+        I: Into<serde_json::Value>,
+    {
+        OcrResponse {
+            engine: self.engine.clone(),
+            result: OcrResult::Data(data.into_iter().map(Into::into).collect()),
+        }
+    }
 }

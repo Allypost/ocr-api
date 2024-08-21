@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.86"
 axum = { version = "0.7.5", features = ["http2", "macros", "multipart"] }
+convert_case = "0.6.0"
 image = { version = "0.25.2", features = ["png", "jpeg", "webp"] }
 ocrs = "0.8.0"
 once_cell = { version = "1.19.0", features = ["parking_lot"] }
@@ -20,6 +21,7 @@ tower = "0.5.0"
 tower-http = { version = "0.5.2", features = ["full"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "parking_lot"] }
+typetag = "0.2.18"
 
 [lints.clippy]
 nursery = { level = "warn", priority = -1 }
