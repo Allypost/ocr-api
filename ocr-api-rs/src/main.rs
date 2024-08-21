@@ -5,10 +5,10 @@ mod ocr;
 use std::{string::ToString, time::Duration};
 
 use axum::{
-    extract::Multipart,
+    extract::{Multipart, Path},
     http::{header, HeaderValue, Request, Response, StatusCode},
     response::IntoResponse,
-    routing::post,
+    routing::{get, post},
     Json, Router,
 };
 use helpers::temp_file::TempFile;
@@ -67,7 +67,8 @@ async fn main() {
 
 fn create_router() -> Router {
     Router::new()
-        .route("/ocr", post(ocr_handler))
+        .route("/", get(handler_root))
+        .route("/ocr/:handler_name", post(handler_ocr_by_handler_name))
         .layer(CatchPanicLayer::new())
         .layer(
             ServiceBuilder::new()
@@ -129,6 +130,13 @@ fn create_router() -> Router {
         )
 }
 
+async fn handler_root() -> impl IntoResponse {
+    Json(serde_json::json!({
+        "available_handlers": ocr::HANDLERS.iter().map(|h| h.name()).collect::<Vec<_>>(),
+        "handler_template": "/ocr/{handler_name}",
+    }))
+}
+
 #[derive(Debug)]
 #[allow(dead_code)]
 struct UploadTempFile {
@@ -179,7 +187,11 @@ async fn upload_temp_file(
     anyhow::bail!("Failed to find field: {}", file_field_name);
 }
 
-async fn ocr_handler(mut multipart: Multipart) -> impl IntoResponse {
+#[tracing::instrument(skip_all)]
+async fn handler_ocr_by_handler_name(
+    Path(handler_name): Path<String>,
+    mut multipart: Multipart,
+) -> impl IntoResponse {
     trace!("Handling OCR request");
 
     let resp = OcrResponseBase::new(&handler_name);

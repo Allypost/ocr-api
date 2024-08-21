@@ -17,10 +17,19 @@ def coords(c):
     }
 
 
-@app.post("/ocr")
+@app.get("/")
+async def root():
+    return {
+        "available_handlers": ["easyocr"],
+        "handler_template": "/ocr/{handler_name}",
+    }
+
+
+@app.post("/ocr/easyocr")
 async def create_upload_file(file: UploadFile):
     if file.content_type not in ["image/jpeg", "image/png"]:
         return {
+            "engine": "easyocr",
             "error": "Invalid file type. Only JPEG and PNG are supported.",
         }
 
@@ -41,4 +50,4 @@ async def create_upload_file(file: UploadFile):
             for (box, text, conf) in ocr_result
         ]
 
-    return {"data": ocr_result}
+    return {"engine": "easyocr", "data": ocr_result}
