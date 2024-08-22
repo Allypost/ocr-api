@@ -10,3 +10,12 @@ services:
       context: ./ocr-api-rs
       tags:
         - index.docker.io/allypost/ocr-api-rs
+
+  api:
+    build:
+      context: ./ocr-api
+      tags:
+        - index.docker.io/allypost/ocr-api
+    environment:
+      BASE_API_URLS: "http://api-py:8000 http://api-rs:8000"
+      API_CHECK_INTERVAL: "10 seconds"

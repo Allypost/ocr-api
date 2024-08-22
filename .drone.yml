@@ -96,6 +96,53 @@ trigger:
 #
 kind: pipeline
 type: docker
+name: build-api-image
+
+node:
+  m_name: tethys
+
+steps:
+  - name: build-docker-image
+    image: docker:dind
+    pull: always
+    environment:
+      _DOCKER_BUILD_IMAGE: "index.docker.io/allypost/ocr-api"
+      _DOCKER_USERNAME:
+        from_secret: DOCKER_HUB_USERNAME
+      _DOCKER_PASSWORD:
+        from_secret: DOCKER_HUB_PASSWORD
+      # Use plain logs for docker build instead of fancy buildkit logs
+      BUILDKIT_PROGRESS: "plain"
+    commands:
+      - cd ./ocr-api
+      - echo "Building '$_DOCKER_BUILD_IMAGE:${DRONE_COMMIT_SHA}' on '${DRONE_STAGE_MACHINE}'"
+      - docker build --pull --compress --label "net.allypost.ocr-api=true" --tag "$_DOCKER_BUILD_IMAGE":latest --tag "$_DOCKER_BUILD_IMAGE":"${DRONE_COMMIT_SHA}" --file ./Dockerfile .
+      - docker login -u "$_DOCKER_USERNAME" -p "$_DOCKER_PASSWORD"
+      - docker push --all-tags "$_DOCKER_BUILD_IMAGE"
+      - docker image rm "$_DOCKER_BUILD_IMAGE:${DRONE_COMMIT_SHA}"
+    volumes:
+      - name: docker
+        path: /var/run/docker.sock
+
+volumes:
+  - name: docker
+    host:
+      path: /var/run/docker.sock
+
+trigger:
+  branch:
+    - main
+  event:
+    - push
+#
+#
+#
+---
+#
+#
+#
+kind: pipeline
+type: docker
 name: after
 
 node:
@@ -155,3 +202,4 @@ steps:
 depends_on:
   - build-rs-image
   - build-py-image
+  - build-api-image
