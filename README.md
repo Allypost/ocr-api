@@ -4,7 +4,7 @@
 
 | Language | OCR implementations | Docker Image |
 | --- | --- | --- |
-| [Python](./ocr-api-py/) | [EasyOCR](https://github.com/JaidedAI/EasyOCR) | [![OCR API Py Image Size](https://img.shields.io/docker/image-size/allypost/ocr-api-py)](https://hub.docker.com/r/allypost/ocr-api-py) |
+| [Python](./ocr-api-py/) | [EasyOCR](https://github.com/JaidedAI/EasyOCR), [doctr](https://github.com/mindee/doctr) | [![OCR API Py Image Size](https://img.shields.io/docker/image-size/allypost/ocr-api-py)](https://hub.docker.com/r/allypost/ocr-api-py) |
 | [Rust](./ocr-api-rs/) | [ocrs](https://github.com/robertknight/ocrs), [tesseract](https://github.com/tesseract-ocr/tesseract) | [![OCR API Rust Image Size](https://img.shields.io/docker/image-size/allypost/ocr-api-rs)](https://hub.docker.com/r/allypost/ocr-api-rs) |
 
 There is also an API Gateway available to unify the different OCR APIs:
