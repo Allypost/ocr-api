@@ -13,7 +13,7 @@ use axum::{
 };
 use helpers::temp_file::TempFile;
 use serde::{Deserialize, Serialize};
-use tokio::{io::AsyncWriteExt, net::TcpListener};
+use tokio::{io::AsyncWriteExt, net::TcpListener, signal};
 use tower::ServiceBuilder;
 use tower_http::{
     catch_panic::CatchPanicLayer,
@@ -61,6 +61,7 @@ async fn main() {
     );
 
     axum::serve(listener, app.into_make_service())
+        .with_graceful_shutdown(shutdown_signal())
         .await
         .expect("Failed to start server!");
 }
@@ -319,6 +320,32 @@ impl OcrResponseBase {
         OcrResponse {
             engine: self.engine.clone(),
             result: OcrResult::Data(data.into_iter().map(Into::into).collect()),
+        }
+    }
+}
+
+async fn shutdown_signal() {
+    // Listen for a SIGINT (Ctrl+C) or SIGTERM signal
+    let ctrl_c = signal::ctrl_c();
+
+    #[cfg(unix)]
+    let mut handler = signal::unix::signal(signal::unix::SignalKind::terminate())
+        .expect("Failed to install signal handler");
+    #[cfg(unix)]
+    let terminate = { handler.recv() };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending();
+
+    #[allow(clippy::redundant_pub_crate)]
+    {
+        tokio::select! {
+            _ = ctrl_c => {
+                println!("Received Ctrl+C, shutting down");
+            }
+            _ = terminate => {
+                println!("Received SIGTERM, shutting down");
+            }
         }
     }
 }

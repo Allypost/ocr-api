@@ -18,7 +18,7 @@ rten-tensor = { version = "0.10.0" }
 rusty-tesseract = "1.1.10"
 serde = { version = "1.0.208", features = ["derive"] }
 serde_json = { version = "1.0.125", features = ["alloc"] }
-tokio = { version = "1.39.2", features = ["fs", "parking_lot", "rt-multi-thread"] }
+tokio = { version = "1.39.2", features = ["fs", "parking_lot", "rt-multi-thread", "signal"] }
 tower = "0.5.0"
 tower-http = { version = "0.5.2", features = ["full"] }
 tracing = "0.1.40"
