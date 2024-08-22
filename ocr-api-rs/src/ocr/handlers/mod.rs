@@ -78,7 +78,7 @@ impl From<OcrTextItem> for serde_json::Value {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub struct CoordBox {
     tl: Point,
@@ -87,11 +87,50 @@ pub struct CoordBox {
     bl: Point,
 }
 
-#[derive(Debug, Serialize)]
+impl PartialOrd for CoordBox {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CoordBox {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let top_max_self = self.tl.y.max(self.tr.y);
+        let top_max_other = other.tl.y.max(other.tr.y);
+        let ord = top_max_self.cmp(&top_max_other);
+
+        if ord != std::cmp::Ordering::Equal {
+            return ord;
+        }
+
+        let left_min_self = self.tl.x.min(self.bl.x);
+        let left_min_other = other.tl.x.min(other.bl.x);
+
+        left_min_self.cmp(&left_min_other)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub struct Point {
     x: i32,
     y: i32,
+}
+
+impl PartialOrd for Point {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Point {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let ord = self.y.cmp(&other.y);
+        if ord != std::cmp::Ordering::Equal {
+            return ord;
+        }
+        self.x.cmp(&other.x)
+    }
 }
 
 fn handlers() -> Vec<Arc<dyn OcrHandler>> {

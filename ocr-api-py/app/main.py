@@ -27,15 +27,12 @@ async def root():
 
 @app.post("/ocr/easyocr")
 async def create_upload_file(file: UploadFile):
-    if file.content_type not in ["image/jpeg", "image/png"]:
-        return {
-            "engine": "easyocr",
-            "error": "Invalid file type. Only JPEG and PNG are supported.",
-        }
-
     with NamedTemporaryFile() as temp:
         shutil.copyfileobj(file.file, temp)
-        ocr_result = reader.readtext(temp.name)
+        try:
+            ocr_result = reader.readtext(temp.name)
+        except Exception as e:
+            return {"engine": "easyocr", "error": str(e)}
         ocr_result = [
             {
                 "text": text,

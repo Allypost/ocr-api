@@ -105,11 +105,13 @@ pub fn ocr_image(path: &Path, mime_type: Option<&str>) -> anyhow::Result<OcrResu
     trace!("Recognized text");
     debug!("Finished running OCR engine");
 
-    let line_items = line_texts
+    let mut line_items = line_texts
         .iter()
         .filter_map(|line| line.as_ref())
         .map(|line| OcrTextItem::from(line).with_text_box(Some(&line.rotated_rect())))
         .collect::<Vec<_>>();
+
+    line_items.sort_by(|a, b| a.text_box.cmp(&b.text_box));
 
     Ok(line_items.into())
 }

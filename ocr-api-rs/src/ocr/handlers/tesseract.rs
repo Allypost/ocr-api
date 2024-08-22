@@ -22,7 +22,9 @@ impl OcrHandler for Tesseract {
             let mut blocks = HashMap::new();
 
             for data in res.data.iter().filter(|x| x.conf > 0_f32) {
-                let block = blocks.entry(data.block_num).or_insert_with(Vec::new);
+                let block = blocks
+                    .entry((data.block_num, data.line_num))
+                    .or_insert_with(Vec::new);
                 block.push(data);
             }
 
@@ -38,6 +40,11 @@ impl OcrHandler for Tesseract {
                         .map(|x| x.text.trim())
                         .collect::<Vec<_>>()
                         .join(" ");
+                    let text = text.trim();
+
+                    if text.is_empty() {
+                        return None;
+                    }
 
                     #[allow(clippy::cast_precision_loss)]
                     let avg_conf =
@@ -70,10 +77,6 @@ impl OcrHandler for Tesseract {
                     } else {
                         None
                     };
-
-                    if text.is_empty() {
-                        return None;
-                    }
 
                     Some(
                         OcrTextItem::from(text)
