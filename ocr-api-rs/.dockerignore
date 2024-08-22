@@ -20,3 +20,5 @@ docker-compose.*.yml
 
 LICENSE
 README.md
+
+justfile

@@ -2,7 +2,7 @@ set dotenv-load := true
 set positional-arguments := true
 
 rustflags := ""
-rust_target := "x86_64-unknown-linux-gnu"
+rust_target := "x86_64-unknown-linux-musl"
 
 default:
     @just --list

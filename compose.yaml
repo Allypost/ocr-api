@@ -1,0 +1,12 @@
+services:
+  api-py:
+    build:
+      context: ./ocr-api-py
+      tags:
+        - index.docker.io/allypost/ocr-api-py
+
+  api-rs:
+    build:
+      context: ./ocr-api-rs
+      tags:
+        - index.docker.io/allypost/ocr-api-rs

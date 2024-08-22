@@ -4,6 +4,6 @@ services:
       context: .
       dockerfile: Dockerfile
       tags:
-        - allypost/ocr-api-py:latest
+        - index.docker.io/allypost/ocr-api-py:latest
     environment:
       NVIDIA_DISABLE_REQUIRE: 1
