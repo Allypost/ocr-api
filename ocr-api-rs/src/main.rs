@@ -5,7 +5,7 @@ mod ocr;
 use std::{string::ToString, time::Duration};
 
 use axum::{
-    extract::{Multipart, Path},
+    extract::{DefaultBodyLimit, Multipart, Path},
     http::{header, HeaderValue, Request, Response, StatusCode},
     response::IntoResponse,
     routing::{get, post},
@@ -71,6 +71,7 @@ fn create_router() -> Router {
         .route("/", get(handler_root))
         .route("/ocr/:handler_name", post(handler_ocr_by_handler_name))
         .layer(CatchPanicLayer::new())
+        .layer(DefaultBodyLimit::disable())
         .layer(
             ServiceBuilder::new()
                 .layer(SetRequestIdLayer::x_request_id(AppMakeRequestId))
