@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import json
 import shutil
 from tempfile import NamedTemporaryFile
 from typing import Callable

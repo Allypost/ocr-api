@@ -6,6 +6,6 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
 RUN python -c 'import easyocr; easyocr.Reader(["hr", "en"])'
 RUN python -c 'import doctr.models; doctr.models.ocr_predictor(assume_straight_pages=False, pretrained=True)'
-COPY ./app ./
+COPY ./src ./
 EXPOSE 8000
-CMD [ "fastapi", "run", "./main.py" ]
+CMD [ "fastapi", "run", "./ocr_api/__init__.py" ]
