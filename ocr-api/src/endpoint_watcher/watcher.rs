@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use futures::{stream::FuturesUnordered, StreamExt};
 use once_cell::sync::OnceCell;
-use tokio::sync::RwLock;
 use tracing::{debug, info};
 
 use super::Endpoint;
@@ -12,17 +11,17 @@ static ENDPOINT_WATCHER: OnceCell<Arc<EndpointWatcher>> = OnceCell::new();
 
 #[derive(Debug)]
 pub struct EndpointWatcher {
-    pub endpoints: Arc<Vec<RwLock<Endpoint>>>,
+    pub endpoints: Vec<Endpoint>,
 }
 
 impl EndpointWatcher {
-    pub async fn check_endpoints_tcp(&self) {
+    pub async fn check_and_update_endpoints(&self) {
         debug!("Checking TCP connections to endpoints");
 
         self.endpoints
             .iter()
             .map(|endpoint| async move {
-                endpoint.write().await.check_and_update().await;
+                endpoint.check_and_update().await;
             })
             .collect::<FuturesUnordered<_>>()
             .collect::<Vec<_>>()
@@ -31,29 +30,23 @@ impl EndpointWatcher {
 }
 
 impl EndpointWatcher {
-    pub async fn endpoints(&self) -> Vec<Endpoint> {
-        self.endpoints
-            .iter()
-            .map(|e| async move { e.read().await.clone() })
-            .collect::<FuturesUnordered<_>>()
-            .collect::<Vec<_>>()
-            .await
+    pub const fn endpoints(&self) -> &Vec<Endpoint> {
+        &self.endpoints
     }
 
-    pub async fn endpoints_supporting_handler(&self, handler: &str) -> Vec<Endpoint> {
+    pub fn endpoints_supporting_handler(&self, handler: &str) -> Vec<&Endpoint> {
         self.endpoints()
-            .await
-            .into_iter()
-            .filter_map(|endpoint| {
+            .iter()
+            .filter(|endpoint| {
                 if !endpoint.is_up() {
-                    return None;
+                    return false;
                 }
 
                 if !endpoint.supports_handler(handler) {
-                    return None;
+                    return false;
                 }
 
-                Some(endpoint)
+                true
             })
             .collect()
     }
@@ -66,11 +59,7 @@ impl EndpointWatcher {
         I: Into<Endpoint>,
     {
         Self {
-            endpoints: Arc::new(
-                urls.into_iter()
-                    .map(|url| RwLock::new(url.into()))
-                    .collect(),
-            ),
+            endpoints: urls.into_iter().map(std::convert::Into::into).collect(),
         }
     }
 
@@ -87,7 +76,7 @@ impl EndpointWatcher {
                 let watcher = watcher.clone();
                 async move {
                     loop {
-                        watcher.check_endpoints_tcp().await;
+                        watcher.check_and_update_endpoints().await;
                         tokio::time::sleep(Config::global().api_check_interval.into()).await;
                     }
                 }
@@ -103,12 +92,6 @@ where
     T: Into<Endpoint>,
 {
     fn from(urls: Vec<T>) -> Self {
-        Self {
-            endpoints: Arc::new(
-                urls.into_iter()
-                    .map(|url| RwLock::new(url.into()))
-                    .collect(),
-            ),
-        }
+        Self::from_urls(urls)
     }
 }

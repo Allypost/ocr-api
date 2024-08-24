@@ -1,6 +1,7 @@
 use std::string::ToString;
 
 use chrono::{prelude::*, DateTime};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tracing::{debug, trace};
@@ -8,24 +9,23 @@ use url::Url;
 
 use crate::helpers::id::time_rand_id;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Serialize)]
 pub struct Endpoint {
     pub id: String,
     pub url: Url,
-    pub status: EndpointStatus,
-    info: Option<EndpointInfo>,
+    pub status: RwLock<EndpointStatus>,
 }
 
 impl Endpoint {
     pub fn supports_handler(&self, handler: &str) -> bool {
-        self.info
-            .as_ref()
+        self.status
+            .read()
+            .info()
             .map_or(false, |info| info.supports_handler(handler))
     }
 
     pub fn handler_url(&self, handler: &str) -> Option<Url> {
-        let info = self.info.as_ref()?;
-        let mut handler_path = info.handler_path(handler);
+        let mut handler_path = self.status.read().info()?.handler_path(handler);
         if handler_path.starts_with('/') {
             handler_path = handler_path[1..].to_string();
         }
@@ -33,26 +33,32 @@ impl Endpoint {
         self.url.join(&handler_path).ok()
     }
 
-    pub const fn is_up(&self) -> bool {
-        self.status.is_up()
+    pub fn is_up(&self) -> bool {
+        self.status.read().is_up()
     }
 }
 
 impl Endpoint {
     #[tracing::instrument(skip_all, fields(url = %self.url.as_str()))]
-    pub async fn check_and_update(&mut self) {
+    pub async fn check_and_update(&self) {
         trace!("Checking and updating endpoint");
-        let was_up = self.status.is_up();
-        let now_is_up = self.check_tcp().await.is_up();
-
-        if !was_up && now_is_up {
-            trace!("Endpoint is freshly up, updating metadata");
-            self.update_metadata().await;
+        match self.check_connectivity().await {
+            Ok(()) => {
+                trace!("Endpoint is up, updating metadata");
+                self.update_metadata().await;
+            }
+            Err(e) => {
+                trace!(error = ?e, "Endpoint is down, updating metadata");
+                {
+                    let mut status = self.status.write();
+                    *status = EndpointStatus::down(format!("Couldn't connect to endpoint: {}", e));
+                }
+            }
         }
     }
 
-    #[tracing::instrument(skip_all, fields(url = %self.url.as_str()))]
-    pub async fn check_tcp(&mut self) -> &mut Self {
+    #[tracing::instrument(skip_all)]
+    async fn check_connectivity(&self) -> Result<(), std::io::Error> {
         trace!("Checking TCP connection to endpoint");
 
         let addr = {
@@ -72,24 +78,29 @@ impl Endpoint {
         match result {
             Ok(_) => {
                 trace!("TCP connection successful");
-                self.status = EndpointStatus::up();
+                return Ok(());
             }
             Err(e) => {
                 trace!(error = ?e, "TCP connection failed");
-                self.status = EndpointStatus::down(e);
+                return Err(e);
             }
+        }
+    }
+
+    async fn update_metadata(&self) -> &Self {
+        let new_status = self.get_metadata().await;
+
+        {
+            let mut status = self.status.write();
+            *status = new_status;
         }
 
         self
     }
 
-    #[tracing::instrument(skip_all, fields(url = %self.url.as_str()))]
-    pub async fn update_metadata(&mut self) -> &mut Self {
-        if !self.status.is_up() {
-            return self;
-        }
-
-        debug!("Updating endpoint metadata");
+    #[tracing::instrument(skip_all)]
+    async fn get_metadata(&self) -> EndpointStatus {
+        debug!("Getting endpoint metadata");
 
         let client = reqwest::Client::new();
         let response = client.get(self.url.as_str()).send().await;
@@ -97,10 +108,7 @@ impl Endpoint {
         let response = match response {
             Ok(resp) => resp,
             Err(e) => {
-                self.status =
-                    EndpointStatus::down(format!("Couldn't get endpoint base info: {:?}", e));
-
-                return self;
+                return EndpointStatus::down(format!("Couldn't get endpoint base info: {:?}", e));
             }
         };
 
@@ -108,17 +116,12 @@ impl Endpoint {
         let response = match response {
             Ok(resp) => resp,
             Err(e) => {
-                self.status =
-                    EndpointStatus::down(format!("Couldn't parse endpoint base info: {:?}", e));
-
-                return self;
+                return EndpointStatus::down(format!("Couldn't parse endpoint base info: {:?}", e));
             }
         };
         trace!(response = ?response, "Parsed response from endpoint");
 
-        self.info = Some(response);
-
-        self
+        EndpointStatus::up(response)
     }
 }
 
@@ -127,8 +130,7 @@ impl Endpoint {
         Self {
             id: time_rand_id(),
             url,
-            status: EndpointStatus::unknown(),
-            info: None,
+            status: RwLock::new(EndpointStatus::unknown()),
         }
     }
 }
@@ -160,6 +162,7 @@ impl EndpointInfo {
 pub enum EndpointStatus {
     Up {
         checked_at: DateTime<Utc>,
+        info: EndpointInfo,
     },
     Down {
         checked_at: DateTime<Utc>,
@@ -168,11 +171,23 @@ pub enum EndpointStatus {
     #[default]
     Unknown,
 }
+impl EndpointStatus {
+    pub const fn info(&self) -> Option<&EndpointInfo> {
+        match self {
+            Self::Up { info, .. } => Some(info),
+            _ => None,
+        }
+    }
+}
 #[allow(dead_code)]
 impl EndpointStatus {
-    pub fn up() -> Self {
+    pub fn up<T>(info: T) -> Self
+    where
+        T: Into<EndpointInfo>,
+    {
         Self::Up {
             checked_at: Utc::now(),
+            info: info.into(),
         }
     }
 

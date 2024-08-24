@@ -16,23 +16,19 @@ pub async fn get_root() -> impl IntoResponse {
 }
 
 pub async fn get_endpoints() -> impl IntoResponse {
-    let endpoints = EndpointWatcher::global().endpoints().await;
+    let endpoints = &EndpointWatcher::global().endpoints;
 
     Json(endpoints)
 }
 
 pub async fn get_endpoints_supporting_handler(Path(handler): Path<String>) -> impl IntoResponse {
-    let endpoints = EndpointWatcher::global()
-        .endpoints_supporting_handler(&handler)
-        .await;
+    let endpoints = EndpointWatcher::global().endpoints_supporting_handler(&handler);
 
     Json(endpoints)
 }
 
 pub async fn get_endpoint_supporting_handler(Path(handler): Path<String>) -> impl IntoResponse {
-    let endpoints = EndpointWatcher::global()
-        .endpoints_supporting_handler(&handler)
-        .await;
+    let endpoints = EndpointWatcher::global().endpoints_supporting_handler(&handler);
 
     let endpoint = endpoints.choose(&mut rand::thread_rng());
 
@@ -59,9 +55,7 @@ pub async fn any_endpoint_proxy_handler(
 ) -> impl IntoResponse {
     debug!(?handler, "Proxying request");
 
-    let endpoints = EndpointWatcher::global()
-        .endpoints_supporting_handler(&handler)
-        .await;
+    let endpoints = EndpointWatcher::global().endpoints_supporting_handler(&handler);
 
     let endpoint = endpoints.choose(&mut rand::thread_rng());
 
