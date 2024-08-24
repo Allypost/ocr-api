@@ -4,10 +4,10 @@ import shutil
 from tempfile import NamedTemporaryFile
 from typing import Callable
 
-import easyocr
-from fastapi import FastAPI, UploadFile
 import doctr.io
 import doctr.models
+import easyocr
+from fastapi import FastAPI, UploadFile
 
 app = FastAPI()
 
