@@ -7,6 +7,10 @@ from typing import Callable
 import doctr.io
 import doctr.models
 import easyocr
+import surya.model.detection.model
+import surya.model.recognition.model
+import surya.model.recognition.processor
+import surya.ocr
 from fastapi import FastAPI, UploadFile
 
 app = FastAPI()
@@ -22,7 +26,7 @@ def coords(c):
 @app.get("/")
 async def root():
     return {
-        "available_handlers": ["easyocr", "doctr"],
+        "available_handlers": ["easyocr", "doctr", "surya"],
         "handler_template": "/ocr/{handler_name}",
     }
 
@@ -107,6 +111,52 @@ async def handle_doctr_ocr(file: UploadFile):
         return {"engine": "doctr", "error": str(e)}
 
     return {"engine": "doctr", "data": ocr_result}
+
+
+surya_det_processor, surya_det_model = (
+    surya.model.detection.model.load_processor(),
+    surya.model.detection.model.load_model(),
+)
+surya_rec_model, surya_rec_processor = (
+    surya.model.recognition.model.load_model(),
+    surya.model.recognition.processor.load_processor(),
+)
+# surya_rec_model.decoder.model = torch.compile(surya_rec_model.decoder.model)
+
+
+@app.post("/ocr/surya")
+async def handle_surya_ocr(file: UploadFile):
+    try:
+        image = Image.open(file.file)
+        langs = ["en", "hr"]
+        predictions = surya.ocr.run_ocr(
+            [image],
+            [langs],
+            surya_det_model,
+            surya_det_processor,
+            surya_rec_model,
+            surya_rec_processor,
+        )
+
+        ocr_result = [
+            {
+                "text": line.text,
+                "confidence": line.confidence,
+                "box": {
+                    "tl": coords(line.polygon[0]),
+                    "tr": coords(line.polygon[1]),
+                    "br": coords(line.polygon[2]),
+                    "bl": coords(line.polygon[3]),
+                },
+            }
+            for pred in predictions
+            for line in pred.text_lines
+        ]
+        print(predictions)
+    except Exception as e:
+        return {"engine": "surya", "error": str(e)}
+
+    return {"engine": "surya", "data": ocr_result}
 
 
 def upload_file(file: UploadFile, after: Callable):
