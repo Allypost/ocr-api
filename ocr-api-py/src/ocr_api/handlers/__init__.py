@@ -9,13 +9,17 @@ from fastapi import UploadFile
 
 from ocr_api.helpers import camel_to_snake
 
+
+def parse_comma_list(s: str) -> set[str]:
+    return {x for x in (x.strip() for x in s.split(",")) if x}
+
+
 T = TypeVar("T")
 
 _HANDLERS: dict[str, "Handler"] = {}
 
-
-_DISABLED_HANDLERS = set(os.environ.get("HANDLER_DENYLIST", "").split(","))
-_ENABLED_HANDLERS = set(os.environ.get("HANDLER_ALLOWLIST", "").split(","))
+_DISABLED_HANDLERS = parse_comma_list(os.environ.get("HANDLER_DENYLIST", ""))
+_ENABLED_HANDLERS = parse_comma_list(os.environ.get("HANDLER_ALLOWLIST", ""))
 
 
 class Handler:
@@ -31,15 +35,16 @@ class Handler:
     def name(cls):
         return camel_to_snake(cls.__name__)
 
-    def available(self):
+    @staticmethod
+    def handler_is_available(name: str):
         allow = False
 
         # If handler allowlist is set, only allow handlers in the allowlist
-        if _ENABLED_HANDLERS and self.name() in _ENABLED_HANDLERS:
+        if _ENABLED_HANDLERS and name in _ENABLED_HANDLERS:
             allow = True
 
         # If handler denylist is set, deny handlers in the denylist
-        if _DISABLED_HANDLERS and self.name() in _DISABLED_HANDLERS:
+        if _DISABLED_HANDLERS and name in _DISABLED_HANDLERS:
             allow = False
 
         # If neither denylist nor allowlist is set, allow all handlers
@@ -47,6 +52,9 @@ class Handler:
             allow = True
 
         return allow
+
+    def available(self):
+        return self.handler_is_available(self.name())
 
     def handle(self, file: UploadFile):
         raise NotImplementedError
@@ -81,12 +89,9 @@ for file in os.listdir(os.path.dirname(__file__)):
 
     name = file[:-3]
 
-    def should_ignore(name: str):
-        return name in _DISABLED_HANDLERS or (
-            _ENABLED_HANDLERS and name not in _ENABLED_HANDLERS
-        )
-
-    if should_ignore(camel_to_snake(name)):
+    if not Handler.handler_is_available(camel_to_snake(name)):
+        print(f"|> Skipping {name}")
         continue
 
+    print(f"|> Importing {name}")
     importlib.import_module(f".{name}", __package__)
