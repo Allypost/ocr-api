@@ -44,7 +44,7 @@ pub fn create_router() -> Router {
             "/admin",
             Router::new()
                 .route(
-                    "/endpoints/",
+                    "/endpoints",
                     get(routes::get_endpoints)
                         .post(routes::any_add_endpoint)
                         .put(routes::any_add_endpoint),

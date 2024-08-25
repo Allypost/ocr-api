@@ -1,5 +1,8 @@
+use axum::{extract::Request, ServiceExt};
 use config::Config;
 use tokio::{net::TcpListener, signal};
+use tower::Layer;
+use tower_http::normalize_path::NormalizePathLayer;
 use tracing::{debug, info, warn};
 
 pub mod config;
@@ -31,7 +34,7 @@ async fn main() {
     // Reference the global endpoint watcher to start global init
     endpoint_watcher::EndpointWatcher::global();
 
-    let app = router::create_router();
+    let app = NormalizePathLayer::trim_trailing_slash().layer(router::create_router());
 
     let listener = {
         let bind_addr = format!(
@@ -53,8 +56,7 @@ async fn main() {
     );
 
     info!("API auth key is {:?}", Config::global().auth.api_auth_key);
-
-    axum::serve(listener, app.into_make_service())
+    axum::serve(listener, ServiceExt::<Request>::into_make_service(app))
         .with_graceful_shutdown(shutdown_signal())
         .await
         .expect("Failed to start server!");
