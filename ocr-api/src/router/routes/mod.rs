@@ -5,33 +5,100 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use chrono::{prelude::*, DateTime};
 use rand::prelude::*;
 use reqwest::{Method, StatusCode};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, trace};
 use url::Url;
 
-use crate::endpoint_watcher::EndpointWatcher;
+use crate::endpoint_watcher::{
+    endpoint::{EndpointId, EndpointStatus},
+    Endpoint, EndpointWatcher,
+};
 
 pub async fn get_root() -> impl IntoResponse {
     Json("OCR API Gateway".to_string())
 }
 
-pub async fn get_endpoints() -> impl IntoResponse {
-    let endpoints = EndpointWatcher::global().endpoints().await;
+#[derive(Debug, Serialize)]
+pub struct EndpointPublic {
+    pub id: EndpointId,
+    pub status: EndpointStatusPublic,
+}
+
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "snake_case", tag = "state")]
+pub enum EndpointStatusPublic {
+    Up {
+        checked_at: DateTime<Utc>,
+        available_handlers: Vec<String>,
+    },
+    Down {
+        checked_at: DateTime<Utc>,
+        error: String,
+    },
+    #[default]
+    Unknown,
+}
+
+impl From<EndpointStatus> for EndpointStatusPublic {
+    fn from(status: EndpointStatus) -> Self {
+        match status {
+            EndpointStatus::Up { checked_at, info } => Self::Up {
+                checked_at,
+                available_handlers: info.available_handlers,
+            },
+            EndpointStatus::Down { checked_at, error } => Self::Down { checked_at, error },
+            EndpointStatus::Unknown => Self::Unknown,
+        }
+    }
+}
+
+impl From<Endpoint> for EndpointPublic {
+    fn from(endpoint: Endpoint) -> Self {
+        Self {
+            id: endpoint.id,
+            status: endpoint.status.read().clone().into(),
+        }
+    }
+}
+impl From<&Endpoint> for EndpointPublic {
+    fn from(endpoint: &Endpoint) -> Self {
+        Self {
+            id: endpoint.id.clone(),
+            status: endpoint.status.read().clone().into(),
+        }
+    }
+}
+
+pub async fn get_endpoints_public() -> impl IntoResponse {
+    let endpoints = EndpointWatcher::global()
+        .endpoints()
+        .await
+        .into_iter()
+        .map(EndpointPublic::from)
+        .collect::<Vec<_>>();
 
     Json(endpoints)
 }
 
-pub async fn get_endpoints_supporting_handler(Path(handler): Path<String>) -> impl IntoResponse {
+pub async fn get_endpoints_supporting_handler_public(
+    Path(handler): Path<String>,
+) -> impl IntoResponse {
     let endpoints = EndpointWatcher::global()
         .endpoints_supporting_handler(&handler)
-        .await;
+        .await
+        .into_iter()
+        .map(EndpointPublic::from)
+        .collect::<Vec<_>>();
 
     Json(endpoints)
 }
 
-pub async fn get_endpoint_supporting_handler(Path(handler): Path<String>) -> impl IntoResponse {
+pub async fn get_endpoint_supporting_handler_public(
+    Path(handler): Path<String>,
+) -> impl IntoResponse {
     let endpoints = EndpointWatcher::global()
         .endpoints_supporting_handler(&handler)
         .await;
@@ -49,7 +116,13 @@ pub async fn get_endpoint_supporting_handler(Path(handler): Path<String>) -> imp
         }
     };
 
-    Json(endpoint).into_response()
+    Json(EndpointPublic::from(endpoint)).into_response()
+}
+
+pub async fn get_endpoints() -> impl IntoResponse {
+    let endpoints = EndpointWatcher::global().endpoints().await;
+
+    Json(endpoints)
 }
 
 #[tracing::instrument]

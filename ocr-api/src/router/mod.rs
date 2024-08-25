@@ -31,14 +31,15 @@ pub const MAX_BODY_SIZE: usize = {
 pub fn create_router() -> Router {
     Router::new()
         .route("/", get(routes::get_root))
-        .route("/endpoints", get(routes::get_endpoints))
+        .route("/endpoints", get(routes::get_endpoints_public))
         .route(
             "/endpoints/supporting/:handler",
-            get(routes::get_endpoints_supporting_handler),
+            get(routes::get_endpoints_supporting_handler_public),
         )
         .route(
             "/ocr/:handler",
-            get(routes::get_endpoint_supporting_handler).post(routes::any_endpoint_proxy_handler),
+            get(routes::get_endpoint_supporting_handler_public)
+                .post(routes::any_endpoint_proxy_handler),
         )
         .nest(
             "/admin",

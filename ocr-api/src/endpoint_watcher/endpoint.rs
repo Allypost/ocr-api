@@ -153,8 +153,8 @@ impl Serialize for Endpoint {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EndpointInfo {
     #[serde(alias = "handlers")]
-    available_handlers: Vec<String>,
-    handler_template: String,
+    pub available_handlers: Vec<String>,
+    pub handler_template: String,
 }
 impl EndpointInfo {
     pub fn supports_handler(&self, handler: &str) -> bool {
