@@ -8,6 +8,7 @@ anyhow = "1.0.86"
 axum = { version = "0.7.5", features = ["http2", "macros"] }
 chrono = { version = "0.4.38", features = ["serde"] }
 clap = { version = "4.5.16", features = ["derive", "env"] }
+constant_time_eq = "0.3.0"
 dotenvy = "0.15.7"
 futures = "0.3.30"
 once_cell = { version = "1.19.0", features = ["parking_lot"] }

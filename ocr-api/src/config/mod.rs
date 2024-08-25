@@ -1,5 +1,6 @@
-use clap::Parser;
+use clap::{Args, Parser};
 use once_cell::sync::Lazy;
+use rand::{distributions::Alphanumeric, prelude::*};
 use url::Url;
 
 use crate::helpers::timeframe::Timeframe;
@@ -36,6 +37,19 @@ pub struct Config {
     /// eg. `5s` to check every 5 seconds or `1 minute` to check every minute.
     #[clap(long, value_parser = Timeframe::parse_str, default_value = "5s", env = "API_CHECK_INTERVAL")]
     pub api_check_interval: Timeframe,
+
+    #[clap(flatten)]
+    pub auth: AuthConfig,
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct AuthConfig {
+    /// The API authentication key.
+    ///
+    /// Effectively a password. Should be a random string of at least 16 characters.
+    /// If not set, a random key will be generated on startup and printed to stdout.
+    #[clap(long, env = "API_AUTH_KEY", default_value = "", value_parser = value_parser_parse_auth_key())]
+    pub api_auth_key: String,
 }
 
 impl Config {
@@ -47,7 +61,17 @@ impl Config {
 
 impl Config {
     fn new() -> Self {
-        Self::parse()
+        let mut c = Self::parse();
+
+        if c.auth.api_auth_key.is_empty() {
+            c.auth.api_auth_key = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(128)
+                .map(|x| x as char)
+                .collect::<String>();
+        }
+
+        c
     }
 }
 
@@ -80,5 +104,19 @@ fn value_parser_parse_absolute_urls() -> impl clap::builder::TypedValueParser {
             })
             .map(|s| parse_absolute_url(s.trim()))
             .collect::<Result<Vec<_>, _>>()
+    }
+}
+
+fn value_parser_parse_auth_key() -> impl clap::builder::TypedValueParser {
+    move |s: &str| {
+        if s.is_empty() {
+            return Ok(s.to_string());
+        }
+
+        if s.len() < 16 {
+            return Err("API auth key must be at least 16 characters long".to_string());
+        }
+
+        Ok(s.to_string())
     }
 }

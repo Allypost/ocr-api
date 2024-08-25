@@ -52,6 +52,8 @@ async fn main() {
         listener.local_addr().expect("Failed to get local address!")
     );
 
+    info!("API auth key is {:?}", Config::global().auth.api_auth_key);
+
     axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(shutdown_signal())
         .await
