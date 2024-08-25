@@ -15,6 +15,10 @@ pub const AUTH_COOKIE: &str = "api-key";
 pub struct AuthData;
 
 pub async fn parse_auth_header(mut request: Request, next: Next) -> Result<Response, Response> {
+    if request.extensions().get::<AuthData>().is_some() {
+        return Ok(next.run(request).await);
+    };
+
     let auth_value = None
         .or_else(|| {
             request
