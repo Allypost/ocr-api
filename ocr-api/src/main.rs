@@ -61,27 +61,28 @@ async fn main() {
 }
 
 async fn shutdown_signal() {
-    // Listen for a SIGINT (Ctrl+C) or SIGTERM signal
-    let ctrl_c = signal::ctrl_c();
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
 
     #[cfg(unix)]
-    let mut handler = signal::unix::signal(signal::unix::SignalKind::terminate())
-        .expect("Failed to install signal handler");
-    #[cfg(unix)]
-    let terminate = { handler.recv() };
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
 
     #[cfg(not(unix))]
-    let terminate = std::future::pending();
+    let terminate = std::future::pending::<()>();
 
     #[allow(clippy::redundant_pub_crate)]
     {
         tokio::select! {
-            _ = ctrl_c => {
-                println!("Received Ctrl+C, shutting down");
-            }
-            _ = terminate => {
-                println!("Received SIGTERM, shutting down");
-            }
+            () = ctrl_c => {},
+            () = terminate => {},
         }
     }
 }
