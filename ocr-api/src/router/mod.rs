@@ -112,7 +112,7 @@ pub fn create_router() -> Router {
                             );
                         }),
                 )
-                .layer(TimeoutLayer::new(Duration::from_secs(60)))
+                .layer(TimeoutLayer::new(Duration::from_secs(300)))
                 .layer(PropagateRequestIdLayer::x_request_id()),
         )
 }
