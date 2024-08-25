@@ -1,4 +1,5 @@
 FROM python:3.12-slim
+RUN apt-get update && apt-get install libgl1 -y
 # Install uv - https://github.com/astral-sh/uv
 COPY --from=ghcr.io/astral-sh/uv:0.3.3 /uv /bin/uv
 ENV UV_SYSTEM_PYTHON=1
