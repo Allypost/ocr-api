@@ -7,7 +7,9 @@ use axum::{
 };
 use rand::prelude::*;
 use reqwest::{Method, StatusCode};
+use serde::Deserialize;
 use tracing::{debug, trace};
+use url::Url;
 
 use crate::endpoint_watcher::EndpointWatcher;
 
@@ -16,19 +18,23 @@ pub async fn get_root() -> impl IntoResponse {
 }
 
 pub async fn get_endpoints() -> impl IntoResponse {
-    let endpoints = &EndpointWatcher::global().endpoints;
+    let endpoints = EndpointWatcher::global().endpoints().await;
 
     Json(endpoints)
 }
 
 pub async fn get_endpoints_supporting_handler(Path(handler): Path<String>) -> impl IntoResponse {
-    let endpoints = EndpointWatcher::global().endpoints_supporting_handler(&handler);
+    let endpoints = EndpointWatcher::global()
+        .endpoints_supporting_handler(&handler)
+        .await;
 
     Json(endpoints)
 }
 
 pub async fn get_endpoint_supporting_handler(Path(handler): Path<String>) -> impl IntoResponse {
-    let endpoints = EndpointWatcher::global().endpoints_supporting_handler(&handler);
+    let endpoints = EndpointWatcher::global()
+        .endpoints_supporting_handler(&handler)
+        .await;
 
     let endpoint = endpoints.choose(&mut rand::thread_rng());
 
@@ -55,7 +61,9 @@ pub async fn any_endpoint_proxy_handler(
 ) -> impl IntoResponse {
     debug!(?handler, "Proxying request");
 
-    let endpoints = EndpointWatcher::global().endpoints_supporting_handler(&handler);
+    let endpoints = EndpointWatcher::global()
+        .endpoints_supporting_handler(&handler)
+        .await;
 
     let endpoint = endpoints.choose(&mut rand::thread_rng());
 
@@ -127,4 +135,43 @@ pub async fn any_endpoint_proxy_handler(
         )
             .into_response(),
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PayloadAddEndpoint {
+    url: Url,
+}
+pub async fn any_add_endpoint(
+    axum::extract::Json(endpoint_payload): axum::extract::Json<PayloadAddEndpoint>,
+) -> impl IntoResponse {
+    let url = endpoint_payload.url.to_string();
+
+    let added = EndpointWatcher::global()
+        .add_endpoint(endpoint_payload.url)
+        .await;
+
+    if !added {
+        return Json(serde_json::json!({
+            "success": false,
+            "message": "Endpoint already exists",
+            "url": url,
+        }));
+    }
+
+    Json(serde_json::json!({
+        "success": true,
+        "message": "Added endpoint",
+        "url": url,
+    }))
+}
+
+pub async fn delete_remove_endpoint(Path(id): Path<String>) -> impl IntoResponse {
+    EndpointWatcher::global().remove_endpoint(&id).await;
+
+    Json(serde_json::json!({
+        "success": true,
+        "message": "Removed endpoint",
+        "id": id,
+    }))
+    .into_response()
 }

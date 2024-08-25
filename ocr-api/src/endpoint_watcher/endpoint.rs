@@ -1,19 +1,19 @@
-use std::string::ToString;
+use std::{string::ToString, sync::Arc};
 
 use chrono::{prelude::*, DateTime};
 use parking_lot::RwLock;
-use serde::{Deserialize, Serialize};
+use serde::{ser::SerializeStruct, Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tracing::{debug, trace};
 use url::Url;
 
 use crate::helpers::id::time_rand_id;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone)]
 pub struct Endpoint {
-    pub id: String,
+    pub id: EndpointId,
     pub url: Url,
-    pub status: RwLock<EndpointStatus>,
+    pub status: Arc<RwLock<EndpointStatus>>,
 }
 
 impl Endpoint {
@@ -31,10 +31,6 @@ impl Endpoint {
         }
 
         self.url.join(&handler_path).ok()
-    }
-
-    pub fn is_up(&self) -> bool {
-        self.status.read().is_up()
     }
 }
 
@@ -128,9 +124,9 @@ impl Endpoint {
 impl Endpoint {
     pub fn new(url: Url) -> Self {
         Self {
-            id: time_rand_id(),
+            id: EndpointId::default(),
             url,
-            status: RwLock::new(EndpointStatus::unknown()),
+            status: Arc::new(RwLock::new(EndpointStatus::unknown())),
         }
     }
 }
@@ -138,6 +134,19 @@ impl Endpoint {
 impl From<Url> for Endpoint {
     fn from(url: Url) -> Self {
         Self::new(url)
+    }
+}
+
+impl Serialize for Endpoint {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state = serializer.serialize_struct("Endpoint", 3)?;
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field("url", &self.url)?;
+        state.serialize_field("status", &*self.status.read())?;
+        state.end()
     }
 }
 
@@ -215,5 +224,52 @@ impl EndpointStatus {
 
     pub const fn is_unknown(&self) -> bool {
         matches!(self, Self::Unknown)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct EndpointId(String);
+impl EndpointId {
+    pub fn time_random() -> Self {
+        time_rand_id().into()
+    }
+}
+
+impl Default for EndpointId {
+    fn default() -> Self {
+        Self::time_random()
+    }
+}
+
+impl From<String> for EndpointId {
+    fn from(id: String) -> Self {
+        Self(id)
+    }
+}
+
+impl From<&String> for EndpointId {
+    fn from(id: &String) -> Self {
+        Self(id.clone())
+    }
+}
+
+impl From<&str> for EndpointId {
+    fn from(id: &str) -> Self {
+        Self(id.to_string())
+    }
+}
+
+impl std::fmt::Display for EndpointId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Serialize for EndpointId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.0)
     }
 }

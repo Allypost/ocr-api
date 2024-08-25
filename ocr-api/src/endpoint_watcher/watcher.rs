@@ -2,53 +2,79 @@ use std::sync::Arc;
 
 use futures::{stream::FuturesUnordered, StreamExt};
 use once_cell::sync::OnceCell;
+use tokio::sync::RwLock;
 use tracing::{debug, info};
 
-use super::Endpoint;
+use super::{endpoint::EndpointId, Endpoint};
 use crate::config::Config;
 
 static ENDPOINT_WATCHER: OnceCell<Arc<EndpointWatcher>> = OnceCell::new();
 
 #[derive(Debug)]
 pub struct EndpointWatcher {
-    pub endpoints: Vec<Endpoint>,
+    endpoints: Arc<RwLock<Vec<Endpoint>>>,
 }
 
 impl EndpointWatcher {
+    #[allow(clippy::significant_drop_tightening)]
     pub async fn check_and_update_endpoints(&self) {
         debug!("Checking TCP connections to endpoints");
 
-        self.endpoints
-            .iter()
-            .map(|endpoint| async move {
-                endpoint.check_and_update().await;
-            })
-            .collect::<FuturesUnordered<_>>()
+        let endpoints = self.endpoints.read().await;
+        let futs = endpoints.iter().map(|endpoint| async move {
+            endpoint.check_and_update().await;
+        });
+
+        futs.collect::<FuturesUnordered<_>>()
             .collect::<Vec<_>>()
             .await;
     }
 }
 
+#[allow(dead_code)]
 impl EndpointWatcher {
-    pub const fn endpoints(&self) -> &Vec<Endpoint> {
-        &self.endpoints
+    pub async fn endpoints(&self) -> Vec<Endpoint> {
+        self.endpoints.read().await.clone()
     }
 
-    pub fn endpoints_supporting_handler(&self, handler: &str) -> Vec<&Endpoint> {
+    pub async fn endpoints_supporting_handler(&self, handler: &str) -> Vec<Endpoint> {
         self.endpoints()
-            .iter()
-            .filter(|endpoint| {
-                if !endpoint.is_up() {
-                    return false;
-                }
-
-                if !endpoint.supports_handler(handler) {
-                    return false;
-                }
-
-                true
-            })
+            .await
+            .into_iter()
+            .filter(|endpoint| endpoint.supports_handler(handler))
             .collect()
+    }
+
+    pub async fn add_endpoint<T>(&self, endpoint: T) -> bool
+    where
+        T: Into<Endpoint> + Send + Sync,
+    {
+        let endpoint = endpoint.into();
+
+        let exists = self
+            .endpoints
+            .read()
+            .await
+            .iter()
+            .any(|e| e.url == endpoint.url);
+
+        if exists {
+            return false;
+        }
+
+        endpoint.check_and_update().await;
+        self.endpoints.write().await.push(endpoint);
+
+        true
+    }
+
+    pub async fn remove_endpoint<T>(&self, endpoint_id: T)
+    where
+        T: Into<EndpointId> + Send + Sync,
+    {
+        let id_to_delete = endpoint_id.into();
+        let mut endpoints = self.endpoints.write().await;
+        endpoints.retain(|endpoint| endpoint.id != id_to_delete);
     }
 }
 
@@ -59,7 +85,9 @@ impl EndpointWatcher {
         I: Into<Endpoint>,
     {
         Self {
-            endpoints: urls.into_iter().map(std::convert::Into::into).collect(),
+            endpoints: Arc::new(RwLock::new(
+                urls.into_iter().map(std::convert::Into::into).collect(),
+            )),
         }
     }
 

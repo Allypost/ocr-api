@@ -6,7 +6,7 @@ use std::time::Duration;
 use axum::{
     extract::DefaultBodyLimit,
     http::{HeaderValue, Request, Response},
-    routing::get,
+    routing::{delete, get},
     Router,
 };
 use reqwest::header;
@@ -39,6 +39,21 @@ pub fn create_router() -> Router {
         .route(
             "/ocr/:handler",
             get(routes::get_endpoint_supporting_handler).post(routes::any_endpoint_proxy_handler),
+        )
+        .nest(
+            "/admin",
+            Router::new()
+                .route(
+                    "/endpoints/",
+                    get(routes::get_endpoints)
+                        .post(routes::any_add_endpoint)
+                        .put(routes::any_add_endpoint),
+                )
+                .route("/endpoints/:id", delete(routes::delete_remove_endpoint))
+                .layer(axum::middleware::from_fn(middleware::auth::require_auth))
+                .layer(axum::middleware::from_fn(
+                    middleware::auth::parse_auth_header,
+                )),
         )
         .layer(CatchPanicLayer::new())
         .layer(DefaultBodyLimit::max(MAX_BODY_SIZE))
