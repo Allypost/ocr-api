@@ -39,9 +39,7 @@ impl From<&Timeframe> for Duration {
 
 impl From<&Timeframe> for String {
     fn from(val: &Timeframe) -> Self {
-        let dur: Duration = val.into();
-
-        format!("r{secs}", secs = dur.as_secs())
+        format!("{val}")
     }
 }
 
@@ -53,9 +51,17 @@ impl From<Timeframe> for String {
 
 impl std::fmt::Display for Timeframe {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let str: String = self.into();
-
-        write!(f, "{}", str)
+        match self {
+            Self::Nanoseconds(ns) => write!(f, "{ns}ns"),
+            Self::Milliseconds(ms) => write!(f, "{ms}ms"),
+            Self::Seconds(s) => write!(f, "{s}s"),
+            Self::Minutes(m) => write!(f, "{m}m"),
+            Self::Hours(h) => write!(f, "{h}h"),
+            Self::Days(d) => write!(f, "{d}d"),
+            Self::Weeks(w) => write!(f, "{w}w"),
+            Self::Months(m) => write!(f, "{m}mon"),
+            Self::Other(d) => write!(f, "{}ns", d.as_nanos()),
+        }
     }
 }
 
