@@ -4,7 +4,7 @@ use url::Url;
 
 use crate::helpers::timeframe::Timeframe;
 
-pub static CONFIG: Lazy<Config> = Lazy::new(Config::new);
+static CONFIG: Lazy<Config> = Lazy::new(Config::new);
 
 #[derive(Debug, Clone, Parser)]
 pub struct Config {
