@@ -2,17 +2,18 @@ use std::{string::ToString, sync::Arc};
 
 use chrono::{prelude::*, DateTime};
 use parking_lot::RwLock;
-use serde::{ser::SerializeStruct, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tracing::{debug, trace};
 use url::Url;
 
 use crate::helpers::id::time_rand_id;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Endpoint {
     pub id: EndpointId,
     pub url: Url,
+    #[serde(serialize_with = "serialize_arc_rwlock_endpoint_status")]
     pub status: Arc<RwLock<EndpointStatus>>,
 }
 
@@ -134,19 +135,6 @@ impl Endpoint {
 impl From<Url> for Endpoint {
     fn from(url: Url) -> Self {
         Self::new(url)
-    }
-}
-
-impl Serialize for Endpoint {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut state = serializer.serialize_struct("Endpoint", 3)?;
-        state.serialize_field("id", &self.id)?;
-        state.serialize_field("url", &self.url)?;
-        state.serialize_field("status", &*self.status.read())?;
-        state.end()
     }
 }
 
@@ -272,4 +260,15 @@ impl Serialize for EndpointId {
     {
         serializer.serialize_str(&self.0)
     }
+}
+
+fn serialize_arc_rwlock_endpoint_status<S>(
+    status: &Arc<RwLock<EndpointStatus>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let status = status.read().clone();
+    status.serialize(serializer)
 }
