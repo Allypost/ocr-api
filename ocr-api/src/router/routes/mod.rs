@@ -5,17 +5,13 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use chrono::{prelude::*, DateTime};
 use rand::prelude::*;
 use reqwest::{Method, StatusCode};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, trace};
 use url::Url;
 
-use crate::endpoint_watcher::{
-    endpoint::{EndpointId, EndpointStatus},
-    Endpoint, EndpointWatcher,
-};
+use crate::endpoint_watcher::{endpoint::EndpointId, Endpoint, EndpointWatcher};
 
 pub async fn get_root() -> impl IntoResponse {
     Json("OCR API Gateway".to_string())
@@ -24,51 +20,38 @@ pub async fn get_root() -> impl IntoResponse {
 #[derive(Debug, Serialize)]
 pub struct EndpointPublic {
     pub id: EndpointId,
-    pub status: EndpointStatusPublic,
+    pub available_handlers: Vec<String>,
 }
 
-#[derive(Debug, Default, Serialize)]
-#[serde(rename_all = "snake_case", tag = "state")]
-pub enum EndpointStatusPublic {
-    Up {
-        checked_at: DateTime<Utc>,
-        available_handlers: Vec<String>,
-    },
-    Down {
-        checked_at: DateTime<Utc>,
-        error: String,
-    },
-    #[default]
-    Unknown,
-}
+impl TryFrom<Endpoint> for EndpointPublic {
+    type Error = String;
 
-impl From<EndpointStatus> for EndpointStatusPublic {
-    fn from(status: EndpointStatus) -> Self {
-        match status {
-            EndpointStatus::Up { checked_at, info } => Self::Up {
-                checked_at,
-                available_handlers: info.available_handlers,
-            },
-            EndpointStatus::Down { checked_at, error } => Self::Down { checked_at, error },
-            EndpointStatus::Unknown => Self::Unknown,
-        }
-    }
-}
+    fn try_from(endpoint: Endpoint) -> Result<Self, Self::Error> {
+        let available_handlers = match (*endpoint.status.read()).info() {
+            Some(info) => info.available_handlers.clone(),
+            None => return Err("No info available".to_string()),
+        };
 
-impl From<Endpoint> for EndpointPublic {
-    fn from(endpoint: Endpoint) -> Self {
-        Self {
+        Ok(Self {
             id: endpoint.id,
-            status: endpoint.status.read().clone().into(),
-        }
+            available_handlers,
+        })
     }
 }
-impl From<&Endpoint> for EndpointPublic {
-    fn from(endpoint: &Endpoint) -> Self {
-        Self {
+
+impl TryFrom<&Endpoint> for EndpointPublic {
+    type Error = String;
+
+    fn try_from(endpoint: &Endpoint) -> Result<Self, Self::Error> {
+        let available_handlers = match (*endpoint.status.read()).info() {
+            Some(info) => info.available_handlers.clone(),
+            None => return Err("No info available".to_string()),
+        };
+
+        Ok(Self {
             id: endpoint.id.clone(),
-            status: endpoint.status.read().clone().into(),
-        }
+            available_handlers,
+        })
     }
 }
 
@@ -77,7 +60,13 @@ pub async fn get_endpoints_public() -> impl IntoResponse {
         .endpoints()
         .await
         .into_iter()
-        .map(EndpointPublic::from)
+        .filter_map(|endpoint| {
+            if endpoint.disabled() {
+                return None;
+            }
+
+            EndpointPublic::try_from(endpoint).ok()
+        })
         .collect::<Vec<_>>();
 
     Json(endpoints)
@@ -90,7 +79,7 @@ pub async fn get_endpoints_supporting_handler_public(
         .endpoints_supporting_handler(&handler)
         .await
         .into_iter()
-        .map(EndpointPublic::from)
+        .flat_map(EndpointPublic::try_from)
         .collect::<Vec<_>>();
 
     Json(endpoints)
@@ -103,7 +92,9 @@ pub async fn get_endpoint_supporting_handler_public(
         .endpoints_supporting_handler(&handler)
         .await;
 
-    let endpoint = endpoints.choose(&mut rand::thread_rng());
+    let endpoint = endpoints
+        .choose(&mut rand::thread_rng())
+        .and_then(|x| EndpointPublic::try_from(x).ok());
 
     let endpoint = match endpoint {
         Some(endpoint) => endpoint,
@@ -116,7 +107,7 @@ pub async fn get_endpoint_supporting_handler_public(
         }
     };
 
-    Json(EndpointPublic::from(endpoint)).into_response()
+    Json(endpoint).into_response()
 }
 
 pub async fn get_endpoints() -> impl IntoResponse {
