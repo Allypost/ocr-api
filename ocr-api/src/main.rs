@@ -34,7 +34,8 @@ async fn main() {
     // Reference the global endpoint watcher to start global init
     endpoint_watcher::EndpointWatcher::global();
 
-    let app = NormalizePathLayer::trim_trailing_slash().layer(router::create_router());
+    let app = router::create_router();
+    let app = NormalizePathLayer::trim_trailing_slash().layer(app);
 
     let listener = {
         let bind_addr = format!(

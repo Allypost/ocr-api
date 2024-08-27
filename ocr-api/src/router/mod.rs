@@ -6,7 +6,7 @@ use std::time::Duration;
 use axum::{
     extract::DefaultBodyLimit,
     http::{HeaderValue, Request, Response},
-    routing::{delete, get},
+    routing::{delete, get, post},
     Router,
 };
 use reqwest::header;
@@ -51,6 +51,8 @@ pub fn create_router() -> Router {
                         .put(routes::any_add_endpoint),
                 )
                 .route("/endpoints/:id", delete(routes::delete_remove_endpoint))
+                .route("/endpoints/:id/disable", post(routes::any_disable_endpoint))
+                .route("/endpoints/:id/enable", post(routes::any_enable_endpoint))
                 .layer(axum::middleware::from_fn(middleware::auth::require_auth))
                 .layer(axum::middleware::from_fn(
                     middleware::auth::parse_auth_header,

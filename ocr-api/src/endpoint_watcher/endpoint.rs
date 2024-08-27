@@ -1,4 +1,10 @@
-use std::{string::ToString, sync::Arc};
+use std::{
+    string::ToString,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use chrono::{prelude::*, DateTime};
 use parking_lot::RwLock;
@@ -15,6 +21,8 @@ pub struct Endpoint {
     pub url: Url,
     #[serde(serialize_with = "serialize_arc_rwlock_endpoint_status")]
     pub status: Arc<RwLock<EndpointStatus>>,
+    #[serde(serialize_with = "serialize_arc_atomic_bool")]
+    disabled: Arc<AtomicBool>,
 }
 
 impl Endpoint {
@@ -33,11 +41,23 @@ impl Endpoint {
 
         self.url.join(&handler_path).ok()
     }
+
+    pub fn disabled(&self) -> bool {
+        self.disabled.load(Ordering::Relaxed)
+    }
+
+    pub fn set_disabled(&self, disabled: bool) {
+        self.disabled.store(disabled, Ordering::Relaxed);
+    }
 }
 
 impl Endpoint {
     #[tracing::instrument(skip_all, fields(url = %self.url.as_str()))]
     pub async fn check_and_update(&self) {
+        if self.disabled() {
+            return;
+        }
+
         trace!("Checking and updating endpoint");
         match self.check_connectivity().await {
             Ok(()) => {
@@ -128,6 +148,7 @@ impl Endpoint {
             id: EndpointId::default(),
             url,
             status: Arc::new(RwLock::new(EndpointStatus::unknown())),
+            disabled: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -270,5 +291,13 @@ where
     S: serde::Serializer,
 {
     let status = status.read().clone();
+    status.serialize(serializer)
+}
+
+fn serialize_arc_atomic_bool<S>(status: &Arc<AtomicBool>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let status = status.load(Ordering::Relaxed);
     status.serialize(serializer)
 }

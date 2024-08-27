@@ -248,3 +248,53 @@ pub async fn delete_remove_endpoint(Path(id): Path<String>) -> impl IntoResponse
     }))
     .into_response()
 }
+
+pub async fn any_disable_endpoint(Path(id): Path<String>) -> impl IntoResponse {
+    let endpoint = EndpointWatcher::global().endpoint(&id).await;
+
+    match endpoint {
+        Some(endpoint) => {
+            endpoint.set_disabled(true);
+        }
+        None => {
+            return Json(serde_json::json!({
+                "success": false,
+                "message": "Endpoint not found",
+                "id": id,
+            }))
+            .into_response();
+        }
+    };
+
+    Json(serde_json::json!({
+        "success": true,
+        "message": "Disabled endpoint",
+        "id": id,
+    }))
+    .into_response()
+}
+
+pub async fn any_enable_endpoint(Path(id): Path<String>) -> impl IntoResponse {
+    let endpoint = EndpointWatcher::global().endpoint(&id).await;
+
+    match endpoint {
+        Some(endpoint) => {
+            endpoint.set_disabled(false);
+        }
+        None => {
+            return Json(serde_json::json!({
+                "success": false,
+                "message": "Endpoint not found",
+                "id": id,
+            }))
+            .into_response();
+        }
+    };
+
+    Json(serde_json::json!({
+        "success": true,
+        "message": "Enabled endpoint",
+        "id": id,
+    }))
+    .into_response()
+}

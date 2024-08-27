@@ -37,11 +37,25 @@ impl EndpointWatcher {
         self.endpoints.read().await.clone()
     }
 
+    pub async fn endpoint<T>(&self, id: T) -> Option<Endpoint>
+    where
+        T: Into<EndpointId> + Send + Sync,
+    {
+        let id = id.into();
+
+        self.endpoints
+            .read()
+            .await
+            .iter()
+            .find(|e| e.id == id)
+            .cloned()
+    }
+
     pub async fn endpoints_supporting_handler(&self, handler: &str) -> Vec<Endpoint> {
         self.endpoints()
             .await
             .into_iter()
-            .filter(|endpoint| endpoint.supports_handler(handler))
+            .filter(|endpoint| !endpoint.disabled() && endpoint.supports_handler(handler))
             .collect()
     }
 
